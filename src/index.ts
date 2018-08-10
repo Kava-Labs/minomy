@@ -5,16 +5,14 @@ import { randomBytes } from 'crypto'
 import { promisify } from 'util'
 const Unidirectional = require('@machinomy/contracts/build/contracts/Unidirectional.json')
 
-export enum ChannelState { Open, Settling }
-
 export interface Channel {
   channelId: string
   receiver: string
   sender: string
   settlingPeriod: BigNumber
+  // settlingUntil is defined if channel is settling; otherwise, the channel is open
   settlingUntil?: BigNumber
   value: BigNumber
-  state: ChannelState
 }
 
 export interface Payment {
@@ -37,8 +35,9 @@ const getContractAddress = async (web3: Web3) => {
 }
 
 const getContract = async (web3: Web3) => {
-  // `from` should default to web3.eth.defaultAccount for all contract calls
-  return new web3.eth.Contract(Unidirectional.abi, await getContractAddress(web3))
+  return new web3.eth.Contract(Unidirectional.abi, await getContractAddress(web3), {
+    from: getAccount(web3)
+  })
 }
 
 const getChannel = async (web3: Web3, channelId: string): Promise<Channel> => {
@@ -46,20 +45,15 @@ const getChannel = async (web3: Web3, channelId: string): Promise<Channel> => {
     const contract = await getContract(web3)
     let {
       sender, receiver, settlingUntil, settlingPeriod, value
-    } = await contract.methods.channels.call(channelId)
+    } = await contract.methods.channels(channelId).call()
 
     // Minimic the check done at the contract level (check for empty address 0x00000...)
     if (web3.utils.toBN(sender).isZero()) {
       throw new Error(`channel not found or already closed`)
     }
 
-    // `settlingUntil` should be positive if settling, 0 if open (contract checks if settlingUntil != 0)
-    const isOpen = new BigNumber(settlingUntil).eq(0)
-    const state = isOpen
-      ? ChannelState.Open
-      : ChannelState.Settling
-
-    settlingUntil = isOpen
+    // In contract, `settlingUntil` should be positive if settling, 0 if open (contract checks if settlingUntil != 0)
+    settlingUntil = settlingUntil !== '0'
       ? new BigNumber(settlingUntil)
       : undefined
 
@@ -69,41 +63,46 @@ const getChannel = async (web3: Web3, channelId: string): Promise<Channel> => {
       sender,
       settlingUntil,
       settlingPeriod: new BigNumber(settlingPeriod),
-      value: new BigNumber(value),
-      state
+      value: new BigNumber(value)
     }
   } catch (err) {
     throw new Error(`Failed to fetch channel details: ${err.message}`)
   }
 }
 
-const generateTx = async (txObj: TransactionObject<any>, value: BigNumber.Value): Promise<Tx> => {
+const getAccount = (web3: Web3): string => {
+  try {
+    return web3.eth.defaultAccount || web3.eth.accounts.wallet[0].address
+  } catch (err) {
+    throw new Error(`no account exists in the given Web3 instance`)
+  }
+}
+
+const generateTx = async (web3: Web3, txObj: TransactionObject<any>, value: BigNumber.Value): Promise<Tx> => {
   const tx = {
     data: txObj.encodeABI(),
-    value: new BigNumber(value).toNumber()
+    value: new BigNumber(value).toString(),
+    from: getAccount(web3)
   }
 
+  const gasPrice = await web3.eth.getGasPrice()
   const gas = await txObj.estimateGas(tx)
 
-  return { ...tx, gas }
+  return { ...tx, gas, gasPrice }
 }
 
 const generateChannelId = async () =>
   '0x' + (await promisify(randomBytes)(32)).toString('hex')
 
-interface OpenChannelOpts {
+const openChannel = async (web3: Web3, { address, value, channelId, settlingPeriod }: {
   address: string
   value: BigNumber.Value
   settlingPeriod?: number
   channelId?: string
-}
-
-interface OpenChannelResult {
-  tx: Tx
+}): Promise<{
+  tx: Tx,
   channelId: string
-}
-
-const openChannel = async (web3: Web3, { address, value, channelId, settlingPeriod }: OpenChannelOpts): Promise<OpenChannelResult> => {
+}> => {
   try {
     const contract = await getContract(web3)
     channelId = channelId || await generateChannelId()
@@ -115,7 +114,7 @@ const openChannel = async (web3: Web3, { address, value, channelId, settlingPeri
       settlingPeriod
     )
 
-    const tx = await generateTx(openTx, value)
+    const tx = await generateTx(web3, openTx, value)
 
     return { tx, channelId }
   } catch (err) {
@@ -123,71 +122,68 @@ const openChannel = async (web3: Web3, { address, value, channelId, settlingPeri
   }
 }
 
-interface DepositOpts {
-  channelId: string
-  value: BigNumber.Value
-}
+const isSettling = (channel: Channel) =>
+  !!channel.settlingUntil
 
-const depositToChannel = async (web3: Web3, { channelId, value }: DepositOpts): Promise<Tx> => {
+const depositToChannel = async (web3: Web3, { channelId, value }: {
+  channelId: string,
+  value: BigNumber.Value
+}): Promise<Tx> => {
   try {
     const isPositive = new BigNumber(value).gt(0)
-    if (isPositive) {
-      throw new Error(`can't create payment for 0 or negative amount`)
+    if (!isPositive) {
+      throw new Error(`can't deposit for 0 or negative amount`)
     }
 
     const channel = await getChannel(web3, channelId)
 
-    const amSender = channel.sender === web3.eth.defaultAccount
+    const amSender = channel.sender === getAccount(web3)
     if (!amSender) {
       throw new Error('default account is not the sender')
     }
 
-    const isOpen = channel.state === ChannelState.Open
-    if (!isOpen) {
+    if (isSettling(channel)) {
       throw new Error(`channel is not open`)
     }
 
     const contract = await getContract(web3)
     const depositTx = contract.methods.deposit(channelId)
 
-    return await generateTx(depositTx, value)
+    return await generateTx(web3, depositTx, value)
   } catch (err) {
     throw new Error(`Failed to deposit: ${err.message}`)
   }
 }
 
-interface CreatePaymentOpts {
-  channelId: string,
-  value: BigNumber
-}
-
-const createPayment = async (web3: Web3, { channelId, value }: CreatePaymentOpts): Promise<Payment> => {
+const createPayment = async (web3: Web3, { channelId, value }: {
+  channelId: string
+  value: BigNumber.Value
+}): Promise<Payment> => {
   try {
     const isPositive = new BigNumber(value).gt(0)
-    if (isPositive) {
+    if (!isPositive) {
       throw new Error(`can't create payment for 0 or negative amount`)
     }
 
     const channel = await getChannel(web3, channelId)
 
-    const amSender = channel.sender === web3.eth.defaultAccount
+    const amSender = channel.sender === getAccount(web3)
     if (!amSender) {
       throw new Error('default account is not the sender')
     }
 
-    const isOpen = channel.state === ChannelState.Open
-    if (!isOpen) {
+    if (isSettling(channel)) {
       throw new Error(`channel is not open`)
     }
 
-    if (value.gt(channel.value)) {
+    if (new BigNumber(value).gt(channel.value)) {
       throw new Error(`total spend is larger than channel value`)
     }
     
     const contract = await getContract(web3)
     const digest = await contract.methods.paymentDigest(channelId, value).call()
 
-    const signature = await web3.eth.sign(web3.eth.defaultAccount, digest)
+    const signature = await web3.eth.sign(digest, getAccount(web3))
 
     // Serialize the payment
     return {
@@ -204,7 +200,7 @@ const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
   try {
     const channel = await getChannel(web3, payment.channelId)
     
-    const address = web3.eth.defaultAccount
+    const address = getAccount(web3)
     if (channel.receiver !== address) {
       throw new Error(`default account is not the receiver`)
     }
@@ -236,18 +232,17 @@ const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
   }
 }
 
-interface CloseChannelOpts {
-  channelId: string,
+const closeChannel = async (web3: Web3, { channelId, payment }: {
+  channelId: string
   payment?: Payment
-}
-
-const closeChannel = async (web3: Web3, { channelId, payment }: CloseChannelOpts): Promise<Tx> => {
+}): Promise<Tx> => {
   try {
     const contract = await getContract(web3)
     const channel = await getChannel(web3, channelId)
   
     // If we're the receiver: claim the channel
-    if (channel.receiver === web3.eth.defaultAccount) {
+    const address = getAccount(web3)
+    if (channel.receiver === address) {
       try {
         if (!payment) {
           throw new Error(`no payment given`)
@@ -256,43 +251,39 @@ const closeChannel = async (web3: Web3, { channelId, payment }: CloseChannelOpts
         // Verify the payment is valid/channel can be claimed
         await validatePayment(web3, payment)
   
-        const claimTx = contract.methods.claim(channelId, new BigNumber(payment.value), payment.signature)
+        const claimTx = contract.methods.claim(payment.channelId, payment.value, payment.signature)
   
-        return await generateTx(claimTx, payment.value)
+        return await generateTx(web3, claimTx, 0)
       } catch (err) {
         throw new Error(`Failed to claim: ${err.message}`)
       }
     }
     // If we're the sender: settle
-    else if (channel.sender === web3.eth.defaultAccount) {
-      // If channel is open, try to begin settlement period
-      if (channel.state === ChannelState.Open) {
-        try {
-          const settleTx = await contract.methods.startSettling(channelId)
-  
-          return await generateTx(settleTx, 0)
-        } catch (err) {
-          throw new Error(`Failed to start settling: ${err.message}`)
-        }
-      }
+    else if (channel.sender === address) {
       // If channel is settling, try to settle
-      else {
+      if (isSettling(channel)) {
         try {
-          if (!channel.settlingUntil) {
-            throw new Error(`can't reconcile internal state`)
-          }
-
           const blockNumber = await web3.eth.getBlockNumber()
-          const blocksRemaining = new BigNumber(channel.settlingUntil).minus(blockNumber)
+          const blocksRemaining = (channel.settlingUntil as BigNumber).minus(blockNumber)
           if (blocksRemaining.gt(0)) {
             throw new Error(`${blocksRemaining} blocks remaining in settling period`)
           }
-  
+          
           const settleTx = await contract.methods.settle(channelId)
-  
-          return await generateTx(settleTx, 0)
+          
+          return await generateTx(web3, settleTx, 0)
         } catch (err) {
           throw new Error(`Failed to settle: ${err.message}`)
+        }
+      }
+      // If channel is open, try to begin settlement period
+      else {
+        try {
+          const settleTx = await contract.methods.startSettling(channelId)
+  
+          return await generateTx(web3, settleTx, 0)
+        } catch (err) {
+          throw new Error(`Failed to start settling: ${err.message}`)
         }
       }
     } else {
