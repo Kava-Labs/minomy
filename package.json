@@ -1,0 +1,32 @@
+{
+  "name": "minomy",
+  "version": "0.0.1",
+  "description": "Simple, functional JavaScript library for Ethereum micropayments",
+  "homepage": "https://github.com/Kaba-Labs/minomy#readme",
+  "bugs": "https://github.com/Kava-Labs/minomy/issues",
+  "license": "MIT",
+  "contributors": [
+    {
+      "name": "Kincaid O'Neil"
+    },
+    {
+      "name": "Kevin Davis"
+    }
+  ],
+  "main": "build/index.js",
+  "repository": "github:Kava-Labs/minomy",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@machinomy/contracts": "4.0.15",
+    "@types/web3": "^1.0.3",
+    "bignumber.js": "^7.2.1",
+    "web3": "^1.0.0-beta.35"
+  },
+  "devDependencies": {
+    "tslint": "^5.11.0",
+    "tslint-config-standard": "^7.1.0",
+    "typescript": "^3.0.1"
+  }
+}
