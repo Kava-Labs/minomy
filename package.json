@@ -16,7 +16,8 @@
   "main": "build/index.js",
   "repository": "github:Kava-Labs/minomy",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "postinstall": "rm -f node_modules/web3/index.d.ts && npm run build"
   },
   "dependencies": {
     "@machinomy/contracts": "4.0.15",

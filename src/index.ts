@@ -1,4 +1,4 @@
-import Web3 from 'web3'
+import Web3 = require('web3')
 import { Tx, TransactionObject } from 'web3/eth/types'
 import BigNumber from 'bignumber.js'
 import { randomBytes } from 'crypto'
