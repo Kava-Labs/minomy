@@ -26,11 +26,11 @@ async function run () {
     value: new BigNumber(130)
   })
   await web3.eth.sendTransaction(tx)
-
+  console.log(`Opened channel for 130 wei from account ${web3.eth.accounts.wallet[0].address}`)
   // Deposit 50 wei to channel, new total value of 180 wei
   tx = await Minomy.depositToChannel(web3, { channelId, value: new BigNumber(50) })
   await web3.eth.sendTransaction(tx)
-
+  console.log(`Deposited to channel for 130 wei`)
   // Create payment for 150 wei
   const payment = await Minomy.createPayment(web3, { channelId, value: new BigNumber(150) })
 
@@ -39,10 +39,11 @@ async function run () {
 
   // Confirm the payment is valid (throws if invalid)
   await Minomy.validatePayment(web3, payment)
-
+  console.log(`Validated payment for 150 wei`)
   // Claim the channel
   tx = await Minomy.closeChannel(web3, { channelId, payment })
   await web3.eth.sendTransaction(tx)
+  console.log(`Closed channel for account ${web3.eth.accounts.wallet[1].address}`)
 }
 
 run().catch(err => console.error(err))
