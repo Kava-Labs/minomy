@@ -1,24 +1,35 @@
 import Web3 = require('web3')
-import { Tx, TransactionObject } from 'web3/eth/types'
-import BigNumber from 'bignumber.js'
 import { randomBytes } from 'crypto'
 import { promisify } from 'util'
+import { TransactionObject } from 'web3/eth/types'
+import BN = require('bn.js')
 const Unidirectional = require('@machinomy/contracts/build/contracts/Unidirectional.json')
 
 export interface Channel {
   channelId: string
   receiver: string
   sender: string
-  settlingPeriod: BigNumber
+  settlingPeriod: BN
   // settlingUntil is defined if channel is settling; otherwise, the channel is open
-  settlingUntil?: BigNumber
-  value: BigNumber
+  settlingUntil?: BN
+  value: BN
 }
 
 export interface Payment {
   channelId: string,
   value: string,
   signature: string
+}
+
+export interface Tx {
+  nonce?: string | number
+  chainId?: string | number // TODO do I need this?
+  to?: string // TODO do I need this?
+  from: string
+  data: string
+  value: string | number
+  gas: string | number
+  gasPrice: string | number
 }
 
 const DEFAULT_SETTLEMENT_PERIOD = 40320 // ~1 week, given 15 second blocks
@@ -54,7 +65,7 @@ const getChannel = async (web3: Web3, channelId: string): Promise<Channel> => {
 
     // In contract, `settlingUntil` should be positive if settling, 0 if open (contract checks if settlingUntil != 0)
     settlingUntil = settlingUntil !== '0'
-      ? new BigNumber(settlingUntil)
+      ? new BN(settlingUntil)
       : undefined
 
     return {
@@ -62,8 +73,8 @@ const getChannel = async (web3: Web3, channelId: string): Promise<Channel> => {
       receiver,
       sender,
       settlingUntil,
-      settlingPeriod: new BigNumber(settlingPeriod),
-      value: new BigNumber(value)
+      settlingPeriod: new BN(settlingPeriod),
+      value: new BN(value)
     }
   } catch (err) {
     throw new Error(`Failed to fetch channel details: ${err.message}`)
@@ -78,10 +89,10 @@ const getAccount = (web3: Web3): string => {
   }
 }
 
-const generateTx = async (web3: Web3, txObj: TransactionObject<any>, value: BigNumber.Value): Promise<Tx> => {
+const generateTx = async (web3: Web3, txObj: TransactionObject<any>, value: BN | string | number): Promise<Tx> => {
   const tx = {
     data: txObj.encodeABI(),
-    value: new BigNumber(value).toString(),
+    value: new BN(value).toString(),
     from: getAccount(web3)
   }
 
@@ -96,8 +107,8 @@ const generateChannelId = async () =>
 
 const openChannel = async (web3: Web3, { address, value, channelId, settlingPeriod }: {
   address: string
-  value: BigNumber.Value
-  settlingPeriod?: number
+  value: BN | string | number
+  settlingPeriod?: BN | string | number
   channelId?: string
 }): Promise<{
   tx: Tx,
@@ -106,7 +117,7 @@ const openChannel = async (web3: Web3, { address, value, channelId, settlingPeri
   try {
     const contract = await getContract(web3)
     channelId = channelId || await generateChannelId()
-    settlingPeriod = settlingPeriod || DEFAULT_SETTLEMENT_PERIOD
+    settlingPeriod = new BN(settlingPeriod || DEFAULT_SETTLEMENT_PERIOD)
 
     const openTx = contract.methods.open(
       channelId,
@@ -127,10 +138,10 @@ const isSettling = (channel: Channel) =>
 
 const depositToChannel = async (web3: Web3, { channelId, value }: {
   channelId: string,
-  value: BigNumber.Value
+  value: BN | string | number
 }): Promise<Tx> => {
   try {
-    const isPositive = new BigNumber(value).gt(0)
+    const isPositive = new BN(value).gt(new BN(0))
     if (!isPositive) {
       throw new Error(`can't deposit for 0 or negative amount`)
     }
@@ -157,10 +168,10 @@ const depositToChannel = async (web3: Web3, { channelId, value }: {
 
 const createPayment = async (web3: Web3, { channelId, value }: {
   channelId: string
-  value: BigNumber.Value
+  value: BN | string | number
 }): Promise<Payment> => {
   try {
-    const isPositive = new BigNumber(value).gt(0)
+    const isPositive = new BN(value).gt(new BN(0))
     if (!isPositive) {
       throw new Error(`can't create payment for 0 or negative amount`)
     }
@@ -176,10 +187,10 @@ const createPayment = async (web3: Web3, { channelId, value }: {
       throw new Error(`channel is not open`)
     }
 
-    if (new BigNumber(value).gt(channel.value)) {
+    if (new BN(value).gt(channel.value)) {
       throw new Error(`total spend is larger than channel value`)
     }
-    
+
     const contract = await getContract(web3)
     const digest = await contract.methods.paymentDigest(channelId, value).call()
 
@@ -188,7 +199,7 @@ const createPayment = async (web3: Web3, { channelId, value }: {
     // Serialize the payment
     return {
       channelId,
-      value: new BigNumber(value).toString(),
+      value: new BN(value).toString(),
       signature
     }
   } catch (err) {
@@ -199,12 +210,12 @@ const createPayment = async (web3: Web3, { channelId, value }: {
 const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
   try {
     const channel = await getChannel(web3, payment.channelId)
-    
+
     const address = getAccount(web3)
     if (channel.receiver !== address) {
       throw new Error(`default account is not the receiver`)
     }
-    
+
     const contract = await getContract(web3)
 
     const canClaim = await contract.methods.canClaim(
@@ -217,13 +228,13 @@ const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
       throw new Error(`not signed by sender of the channel`)
     }
 
-    const isValidPaymentValue = new BigNumber(payment.value)
-      .lte(new BigNumber(channel.value))
+    const isValidPaymentValue = new BN(payment.value)
+      .lte(channel.value)
     if (!isValidPaymentValue) {
       throw new Error(`payment value is greater than amount in channel`)
     }
 
-    const isPositive = new BigNumber(payment.value).gt(0)
+    const isPositive = new BN(payment.value).gt(new BN(0))
     if (!isPositive) {
       throw new Error(`payment is zero or negative`)
     }
@@ -239,7 +250,7 @@ const closeChannel = async (web3: Web3, { channelId, payment }: {
   try {
     const contract = await getContract(web3)
     const channel = await getChannel(web3, channelId)
-  
+
     // If we're the receiver: claim the channel
     const address = getAccount(web3)
     if (channel.receiver === address) {
@@ -250,37 +261,35 @@ const closeChannel = async (web3: Web3, { channelId, payment }: {
 
         // Verify the payment is valid/channel can be claimed
         await validatePayment(web3, payment)
-  
+
         const claimTx = contract.methods.claim(payment.channelId, payment.value, payment.signature)
-  
+
         return await generateTx(web3, claimTx, 0)
       } catch (err) {
         throw new Error(`Failed to claim: ${err.message}`)
       }
-    }
-    // If we're the sender: settle
-    else if (channel.sender === address) {
-      // If channel is settling, try to settle
+    } else if (channel.sender === address) {
+      // If we're the sender: settle
       if (isSettling(channel)) {
+        // If channel is settling, try to settle
         try {
           const blockNumber = await web3.eth.getBlockNumber()
-          const blocksRemaining = (channel.settlingUntil as BigNumber).minus(blockNumber)
-          if (blocksRemaining.gt(0)) {
+          const blocksRemaining = (channel.settlingUntil as BN).sub(new BN(blockNumber))
+          if (blocksRemaining.gt(new BN(0))) {
             throw new Error(`${blocksRemaining} blocks remaining in settling period`)
           }
-          
+
           const settleTx = await contract.methods.settle(channelId)
-          
+
           return await generateTx(web3, settleTx, 0)
         } catch (err) {
           throw new Error(`Failed to settle: ${err.message}`)
         }
-      }
-      // If channel is open, try to begin settlement period
-      else {
+      } else {
+        // If channel is open, try to begin settlement period
         try {
           const settleTx = await contract.methods.startSettling(channelId)
-  
+
           return await generateTx(web3, settleTx, 0)
         } catch (err) {
           throw new Error(`Failed to start settling: ${err.message}`)

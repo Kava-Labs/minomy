@@ -14,6 +14,7 @@
     }
   ],
   "main": "build/index.js",
+  "types": "build/index.d.ts",
   "repository": "github:Kava-Labs/minomy",
   "scripts": {
     "build": "tsc",
@@ -21,8 +22,9 @@
   },
   "dependencies": {
     "@machinomy/contracts": "4.1.1",
+    "@types/bn.js": "^4.11.1",
     "@types/web3": "^1.0.3",
-    "bignumber.js": "^7.2.1",
+    "bn.js": "^4.11.8",
     "web3": "^1.0.0-beta.35"
   },
   "devDependencies": {
