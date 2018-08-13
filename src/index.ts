@@ -15,7 +15,7 @@ export interface Channel {
   value: BN
 }
 
-export interface Payment {
+export interface Claim {
   channelId: string,
   value: string,
   signature: string
@@ -166,14 +166,14 @@ const depositToChannel = async (web3: Web3, { channelId, value }: {
   }
 }
 
-const createPayment = async (web3: Web3, { channelId, value }: {
+const createClaim = async (web3: Web3, { channelId, value }: {
   channelId: string
   value: BN | string | number
-}): Promise<Payment> => {
+}): Promise<Claim> => {
   try {
     const isPositive = new BN(value).gt(new BN(0))
     if (!isPositive) {
-      throw new Error(`can't create payment for 0 or negative amount`)
+      throw new Error(`can't create claim for 0 or negative amount`)
     }
 
     const channel = await getChannel(web3, channelId)
@@ -196,20 +196,20 @@ const createPayment = async (web3: Web3, { channelId, value }: {
 
     const signature = await web3.eth.sign(digest, getAccount(web3))
 
-    // Serialize the payment
+    // Serialize the claim
     return {
       channelId,
       value: new BN(value).toString(),
       signature
     }
   } catch (err) {
-    throw new Error(`Failed to create payment: ${err.message}`)
+    throw new Error(`Failed to create claim: ${err.message}`)
   }
 }
 
-const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
+const validateClaim = async (web3: Web3, claim: Claim): Promise<void> => {
   try {
-    const channel = await getChannel(web3, payment.channelId)
+    const channel = await getChannel(web3, claim.channelId)
 
     const address = getAccount(web3)
     if (channel.receiver !== address) {
@@ -219,33 +219,33 @@ const validatePayment = async (web3: Web3, payment: Payment): Promise<void> => {
     const contract = await getContract(web3)
 
     const canClaim = await contract.methods.canClaim(
-      payment.channelId,
-      payment.value,
+      claim.channelId,
+      claim.value,
       address,
-      payment.signature
+      claim.signature
     ).call()
     if (!canClaim) {
       throw new Error(`not signed by sender of the channel`)
     }
 
-    const isValidPaymentValue = new BN(payment.value)
+    const isValidClaimValue = new BN(claim.value)
       .lte(channel.value)
-    if (!isValidPaymentValue) {
-      throw new Error(`payment value is greater than amount in channel`)
+    if (!isValidClaimValue) {
+      throw new Error(`claim value is greater than amount in channel`)
     }
 
-    const isPositive = new BN(payment.value).gt(new BN(0))
+    const isPositive = new BN(claim.value).gt(new BN(0))
     if (!isPositive) {
-      throw new Error(`payment is zero or negative`)
+      throw new Error(`claim is zero or negative`)
     }
   } catch (err) {
-    throw new Error(`Invalid payment: ${err.message}`)
+    throw new Error(`Invalid claim: ${err.message}`)
   }
 }
 
-const closeChannel = async (web3: Web3, { channelId, payment }: {
+const closeChannel = async (web3: Web3, { channelId, claim }: {
   channelId: string
-  payment?: Payment
+  claim?: Claim
 }): Promise<Tx> => {
   try {
     const contract = await getContract(web3)
@@ -255,14 +255,14 @@ const closeChannel = async (web3: Web3, { channelId, payment }: {
     const address = getAccount(web3)
     if (channel.receiver === address) {
       try {
-        if (!payment) {
-          throw new Error(`no payment given`)
+        if (!claim) {
+          throw new Error(`no claim given`)
         }
 
-        // Verify the payment is valid/channel can be claimed
-        await validatePayment(web3, payment)
+        // Verify the channel can be claimed
+        await validateClaim(web3, claim)
 
-        const claimTx = contract.methods.claim(payment.channelId, payment.value, payment.signature)
+        const claimTx = contract.methods.claim(claim.channelId, claim.value, claim.signature)
 
         return await generateTx(web3, claimTx, 0)
       } catch (err) {
@@ -310,7 +310,7 @@ export {
   depositToChannel,
   closeChannel,
 
-  // Payments
-  createPayment,
-  validatePayment
+  // Claims
+  createClaim,
+  validateClaim
 }
