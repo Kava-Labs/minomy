@@ -17,19 +17,29 @@
   "types": "build/index.d.ts",
   "repository": "github:Kava-Labs/minomy",
   "scripts": {
-    "build": "npm run fix-web3 && tsc",
-    "fix-web3": "rm -f ./node_modules/web3/index.d.ts && rm -f ../web3/index.d.ts",
-    "postinstall": "npm run fix-web3 && npm run build"
+    "build": "tsc",
+    "postinstall": "rm -f node_modules/web3/index.d.ts && npm run build",
+    "test": "jest",
+    "unit": "jest"
   },
   "dependencies": {
     "@machinomy/contracts": "4.1.1",
+    "@makerdao/dai": "^0.5.8",
     "@types/web3": "^1.0.3",
     "bignumber.js": "^7.2.1",
     "web3": "^1.0.0-beta.35"
   },
   "devDependencies": {
+    "jest": "^23.5.0",
+    "ts-node": "^7.0.1",
     "tslint": "^5.11.0",
     "tslint-config-standard": "^7.1.0",
     "typescript": "^3.0.1"
+  },
+  "jest": {
+    "verbose": false,
+    "testEnvironment": "node",
+    "collectCoverage": true,
+    "testRegex": "\\.spec\\.js$"
   }
 }
