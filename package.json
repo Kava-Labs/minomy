@@ -18,7 +18,7 @@
   "repository": "github:Kava-Labs/minomy",
   "scripts": {
     "build": "npm run fix-web3 && tsc",
-    "fix-web3": "rm -f node_modules/web3/index.d.ts",
+    "fix-web3": "rm -f ./node_modules/web3/index.d.ts",
     "postinstall": "npm run fix-web3 && npm run build"
   },
   "dependencies": {
