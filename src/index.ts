@@ -105,7 +105,7 @@ const generateTx = async (web3: Web3, txObj: TransactionObject<any>, value: BigN
     // nonce,
     from,
     data: txObj.encodeABI(),
-    value: new BigNumber(value).toString()
+    value: new BigNumber(value).toString(16)
   }
 
   const gasPrice = await web3.eth.getGasPrice()
@@ -218,7 +218,7 @@ const createClaim = async (web3: Web3, { channelId, value }: {
     // Serialize the claim
     return {
       channelId,
-      value: new BigNumber(value).toString(),
+      value: new BigNumber(value).toString(16),
       signature
     }
   } catch (err) {
