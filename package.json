@@ -17,14 +17,14 @@
   "types": "build/index.d.ts",
   "repository": "github:Kava-Labs/minomy",
   "scripts": {
-    "build": "tsc",
-    "postinstall": "rm -f node_modules/web3/index.d.ts && npm run build"
+    "build": "npm run fix-web3 && tsc",
+    "fix-web3": "rm -f node_modules/web3/index.d.ts",
+    "postinstall": "npm run fix-web3 && npm run build"
   },
   "dependencies": {
     "@machinomy/contracts": "4.1.1",
-    "@types/bn.js": "^4.11.1",
     "@types/web3": "^1.0.3",
-    "bn.js": "^4.11.8",
+    "bignumber.js": "^7.2.1",
     "web3": "^1.0.0-beta.35"
   },
   "devDependencies": {

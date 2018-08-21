@@ -31,17 +31,17 @@ async function run () {
   tx = await Minomy.depositToChannel(web3, { channelId, value: new BigNumber(50) })
   await web3.eth.sendTransaction(tx)
   console.log(`Deposited to channel for 130 wei`)
-  // Create payment for 150 wei
-  const payment = await Minomy.createPayment(web3, { channelId, value: new BigNumber(150) })
+  // Create claim for total of 150 wei
+  const claim = await Minomy.createClaim(web3, { channelId, value: new BigNumber(150) })
 
   // Set receiver as default account so Web3 and Minomy use that
   web3.eth.defaultAccount = receiver
 
-  // Confirm the payment is valid (throws if invalid)
-  await Minomy.validatePayment(web3, payment)
-  console.log(`Validated payment for 150 wei`)
+  // Confirm the claim is valid (throws if invalid)
+  await Minomy.validateClaim(web3, payment)
+  console.log(`Validated claim for total of 150 wei`)
   // Claim the channel
-  tx = await Minomy.closeChannel(web3, { channelId, payment })
+  tx = await Minomy.closeChannel(web3, { channelId, claim })
   await web3.eth.sendTransaction(tx)
   console.log(`Closed channel for account ${web3.eth.accounts.wallet[1].address}`)
 }
