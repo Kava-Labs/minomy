@@ -1,6 +1,6 @@
 import Web3 = require('web3')
 import { TransactionObject } from 'web3/eth/types'
-import BN = require('bn.js')
+import { BigNumber } from 'bignumber.js'
 import { randomBytes } from 'crypto'
 import { promisify } from 'util'
 
@@ -23,7 +23,7 @@ interface Claim {
 interface Tx {
   nonce?: string | number
   chainId?: string | number
-  to?: string 
+  to?: string
   from: string
   data: string
   value: string | number
@@ -73,11 +73,11 @@ class Minomy {
     return '0x' + (await promisify(randomBytes)(32)).toString('hex')
   }
 
-  async _generateTx (txObj: TransactionObject<any>, value: BN | string | number = 0): Promise<Tx> {
+  async _generateTx (txObj: TransactionObject<any>, value: BigNumber | string | number = 0): Promise<Tx> {
     const account = this.web3.eth.defaultAccount || this.web3.eth.accounts.wallet[0].address
     const tx = {
       data: txObj.encodeABI(),
-      value: new BN(value).toString(),
+      value: new BigNumber(value).toString(),
       from: account
     }
 
@@ -87,33 +87,32 @@ class Minomy {
 
   }
 
-  async approveTokenTransferTx (value: BN | string | number): Promise<Tx> {
+  async createApproveTokenTransferTx (value: BigNumber | string | number): Promise<Tx> {
     try {
       const contractInstance = await this._getContractInstance()
       const tokenContractInstance = new this.web3.eth.Contract(this.tokenAbi as any[], this.tokenAddress)
       const approveTx = tokenContractInstance.methods.approve(
-        contractInstance._address, new BN(value).toString()
+        contractInstance._address, new BigNumber(value).toString()
       )
-      const tx = await this._generateTx(approveTx)
-      return tx
+      return this._generateTx(approveTx)
     } catch (err) {
       throw new Error(`Failed to approve token transfer: ${err.message}`)
     }
   }
 
-  async openChannelTx (
+  async createOpenChannelTx (
     { address, value, channelId, settlingPeriod }: {
       address: string
-      value: BN | string | number
+      value: BigNumber | string | number
       channelId?: string
-      settlingPeriod?: BN | string | number
+      settlingPeriod?: BigNumber | string | number
     }): Promise<{
       tx: Tx,
       channelId: string
     }> {
     const contractInstance = await this._getContractInstance()
     channelId = channelId || await this._generateChannelId()
-    settlingPeriod = new BN(settlingPeriod || DEFAULT_SETTLEMENT_PERIOD)
+    settlingPeriod = new BigNumber(settlingPeriod || DEFAULT_SETTLEMENT_PERIOD)
     if (this.contract.contractName === 'Unidirectional') {
       try {
         const openTx = contractInstance.methods.open(
@@ -133,7 +132,7 @@ class Minomy {
           address,
           settlingPeriod,
           this.tokenAddress,
-          new BN(value).toString()
+          new BigNumber(value).toString()
         )
         const tx = await this._generateTx(openTx)
         return { tx, channelId }
@@ -149,11 +148,11 @@ class Minomy {
       let {
         sender, receiver, settlingUntil, settlingPeriod, value
       } = await contractInstance.methods.channels(channelId).call()
-      if (this.web3.utils.toBN(sender).isZero()) {
+      if (new BigNumber(sender).isZero()) {
         throw new Error(`channel not found or already closed`)
       }
       settlingUntil = settlingUntil !== '0'
-      ? new BN(settlingUntil)
+      ? new BigNumber(settlingUntil)
       : undefined
 
       return {
@@ -161,17 +160,17 @@ class Minomy {
         receiver,
         sender,
         settlingUntil,
-        settlingPeriod: new BN(settlingPeriod),
-        value: new BN(value)
+        settlingPeriod: new BigNumber(settlingPeriod),
+        value: new BigNumber(value)
       }
     } catch (err) {
       throw new Error(`Failed to fetch channel details: ${err.message}`)
     }
   }
 
-  async depositToChannelTx (channelId: string, value: BN | string | number): Promise<Tx> {
+  async createDepositToChannelTx (channelId: string, value: BigNumber | string | number): Promise<Tx> {
     try {
-      const isPositive = new BN(value).gt(new BN(0))
+      const isPositive = new BigNumber(value).gt(new BigNumber(0))
       if (!isPositive) {
         throw new Error(`can't deposit for 0 or negative amount`)
       }
@@ -189,7 +188,7 @@ class Minomy {
         const depositTx = contractInstance.methods.deposit(channelId)
         return await this._generateTx(depositTx, value)
       } else {
-        const depositTx = contractInstance.methods.deposit(channelId, new BN(value).toString())
+        const depositTx = contractInstance.methods.deposit(channelId, new BigNumber(value).toString())
         return await this._generateTx(depositTx)
       }
     } catch (err) {
@@ -199,10 +198,10 @@ class Minomy {
 
   async createClaim ({ channelId, value }: {
     channelId: string
-    value: BN | string | number
+    value: BigNumber | string | number
   }): Promise<Claim> {
     try {
-      const isPositive = new BN(value).gt(new BN(0))
+      const isPositive = new BigNumber(value).gt(new BigNumber(0))
       if (!isPositive) {
         throw new Error(`can't create claim for 0 or negative amount`)
       }
@@ -215,7 +214,7 @@ class Minomy {
       if (channel.settlingUntil) {
         throw new Error(`channel is not open`)
       }
-      if (new BN(value).gt(channel.value)) {
+      if (new BigNumber(value).gt(channel.value)) {
         throw new Error(`total spend is larger than channel value`)
       }
       const contractInstance = await this._getContractInstance()
@@ -224,7 +223,7 @@ class Minomy {
         const signature = await this.web3.eth.sign(digest, account)
         return {
           channelId,
-          value: new BN(value).toString(),
+          value: new BigNumber(value).toString(),
           signature
         }
       } else {
@@ -232,7 +231,7 @@ class Minomy {
         const signature = await this.web3.eth.sign(digest, account)
         return {
           channelId,
-          value: new BN(value).toString(),
+          value: new BigNumber(value).toString(),
           signature
         }
       }
@@ -259,11 +258,11 @@ class Minomy {
         throw new Error(`not signed by sender of the channel`)
       }
 
-      const isValidClaimValue = new BN(claim.value).lte(channel.value)
+      const isValidClaimValue = new BigNumber(claim.value).lte(channel.value)
       if (!isValidClaimValue) {
         throw new Error(`claim value is greater than amount in channel`)
       }
-      const isPositive = new BN(claim.value).gt(new BN(0))
+      const isPositive = new BigNumber(claim.value).gt(new BigNumber(0))
       if (!isPositive) {
         throw new Error(`claim is zero or negative`)
       }
@@ -272,7 +271,7 @@ class Minomy {
     }
   }
 
-  async closeChannelTx ({ channelId, claim }: {
+  async createCloseChannelTx ({ channelId, claim }: {
     channelId: string
     claim?: Claim
   }): Promise<Tx> {
@@ -296,8 +295,8 @@ class Minomy {
         if (channel.settlingUntil) {
           try {
             const blockNumber = await this.web3.eth.getBlockNumber()
-            const blocksRemaining = (channel.settlingUntil as BN).sub(new BN(blockNumber))
-            if (blocksRemaining.gt(new BN(0))) {
+            const blocksRemaining = (channel.settlingUntil as BigNumber).minus(new BigNumber(blockNumber))
+            if (blocksRemaining.gt(new BigNumber(0))) {
               throw new Error(`${blocksRemaining.toString()} blocks remaining in settling period`)
             }
             const settleTx = await contractInstance.methods.settle(channelId)
