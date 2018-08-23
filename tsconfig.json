@@ -13,5 +13,8 @@
     "strictNullChecks": true,
     "suppressImplicitAnyIndexErrors": true
   },
-  "compileOnSave": true
+  "compileOnSave": true,
+  "exclude": [
+    "**/*.integration.ts"
+  ]
 }
