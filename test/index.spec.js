@@ -2,7 +2,7 @@ const Minomy = require("..")
 const Unidirectional = require('@machinomy/contracts/build/contracts/Unidirectional.json')
 const TokenUnidirectional = require('@machinomy/contracts/build/contracts/TokenUnidirectional.json')
 const Web3 = require('web3')
-const BN = require('bn.js')
+const BigNumber = require('bignumber.js')
 
 describe('Class Instantiation', () => {
     let mockTokenAddress = "0x234"
@@ -58,7 +58,7 @@ describe('Channel Open', () => {
     let minomy
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockData = "0xfd745bcee72cb3c62"
         mockReceiver = '0x54321'
@@ -70,7 +70,7 @@ describe('Channel Open', () => {
             gas: mockGas,
             gasPrice: mockGasPrice,
             to: mockReceiver,
-            value: mockValue.toString('hex') }
+            value: mockValue.toString(16) }
         minomy = new Minomy(Unidirectional, new Web3())
         minomy._getContractInstance = jest.fn().mockResolvedValue(
             {methods: {open: jest.fn().mockReturnValue("Mock Return")}}
@@ -83,35 +83,35 @@ describe('Channel Open', () => {
     afterEach(() => {
         jest.clearAllMocks()
     })
-    test('OpenChannelTx calls _getContractInstance', () => {
+    test('createOpenChannelTx calls _getContractInstance', () => {
         
         minomy._generateChannelId = jest.fn().mockResolvedValue(mockChannelId)
-        minomy.openChannelTx({ mockAddress, mockValue })
+        minomy.createOpenChannelTx({ mockAddress, mockValue })
         expect(minomy._getContractInstance).toHaveBeenCalledTimes(1)
     })
-    test('OpenChannelTx does not call _generateChannelId if a channelId is passed.', () => {
+    test('createOpenChannelTx does not call _generateChannelId if a channelId is passed.', () => {
         minomy._generateChannelId = jest.fn().mockResolvedValue(mockChannelId)
-        minomy.openChannelTx(
+        minomy.createOpenChannelTx(
             { address: mockAddress, value: mockValue, channelId: mockChannelId }
         )
         expect(minomy._generateChannelId).not.toHaveBeenCalled()
     })
-    test('OpenChannelTx calls _generateChannelId if a channelId is not passed.', async () => {
+    test('createOpenChannelTx calls _generateChannelId if a channelId is not passed.', async () => {
         minomy._generateChannelId = jest.fn().mockResolvedValue(mockChannelId)
-        await minomy.openChannelTx(
+        await minomy.createOpenChannelTx(
             { address: mockAddress, value: mockValue }
         )
         expect(minomy._generateChannelId).toHaveBeenCalled()
     })
-    test('OpenChannelTx returns the mock transaction and mock channelID', async () => {
+    test('createOpenChannelTx returns the mock transaction and mock channelID', async () => {
         await expect(
-            minomy.openChannelTx(
+            minomy.createOpenChannelTx(
                 { address: mockAddress, value: mockValue, channelId: mockChannelId }
             )).resolves.toEqual(
                 { channelId: mockChannelId, tx: mockTx }
             )
     })
-    test('OpenChannelTx returns the mock transaction and mock channelID for ERC20 contract', async () => {
+    test('createOpenChannelTx returns the mock transaction and mock channelID for ERC20 contract', async () => {
         let erc20 = new Minomy(TokenUnidirectional, new Web3(), 'tokenAddress', 'tokenAbi')
         erc20._getContractInstance = jest.fn().mockResolvedValue(
             {methods: {open: jest.fn().mockReturnValue("Mock Return")}}
@@ -120,7 +120,7 @@ describe('Channel Open', () => {
             mockTx
         )
         await expect(
-            erc20.openChannelTx(
+            erc20.createOpenChannelTx(
                 { address: mockAddress, value: mockValue, channelId: mockChannelId }
             )).resolves.toEqual(
                 { channelId: mockChannelId, tx: mockTx }
@@ -139,21 +139,21 @@ describe('Fetching channel info', () => {
     let minomy
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockReceiver = '0x54321'
         mockChannel = {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: '0', // settlingUntil returns as '0' in a normal web3 call
             value: mockValue }
         mockChannelReturn = {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil decomes undefined in getChannel
             value: mockValue }
         mockClosingChannel = {
@@ -208,7 +208,7 @@ describe('Depositing to a channel', () => {
     let mockData
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockReceiver = '0x54321'
         mockData = "0xfd745bcee72cb3c62"
@@ -218,14 +218,14 @@ describe('Depositing to a channel', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue }
         mockClosingChannel = {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: 100, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue
         }
@@ -237,7 +237,7 @@ describe('Depositing to a channel', () => {
             gas: mockGas,
             gasPrice: mockGasPrice,
             to: mockReceiver,
-            value: mockValue.toString('hex') }
+            value: mockValue.toString(16) }
     })
     afterEach(() => {
         jest.clearAllMocks()
@@ -245,27 +245,27 @@ describe('Depositing to a channel', () => {
     test('Throws for zero value deposit', async () => {
         minomy = new Minomy(Unidirectional, mockWeb3)
         await expect(
-            minomy.depositToChannelTx(mockChannelId, new BN(0))
+            minomy.createDepositToChannelTx(mockChannelId, new BigNumber(0))
         ).rejects.toEqual(new Error(`Failed to deposit: can't deposit for 0 or negative amount`))
     })
     test('Throws for negative value deposit', async () => {
         minomy = new Minomy(Unidirectional, mockWeb3)
         await expect(
-            minomy.depositToChannelTx(mockChannelId, new BN(-100))
+            minomy.createDepositToChannelTx(mockChannelId, new BigNumber(-100))
         ).rejects.toEqual(new Error(`Failed to deposit: can't deposit for 0 or negative amount`))
     })
     test('Throws if account is not the sender', async () => {
         minomy = new Minomy(Unidirectional, mockWeb3)
         minomy.getChannel = jest.fn().mockResolvedValue(mockClosingChannel)
         await expect(
-            minomy.depositToChannelTx(mockChannelId, mockValue)
+            minomy.createDepositToChannelTx(mockChannelId, mockValue)
         ).rejects.toEqual(new Error(`Failed to deposit: channel is not open`))
     })
     test('Throws if channel is closing', async () => {
         minomy = new Minomy(Unidirectional, mockBadWeb3)
         minomy.getChannel = jest.fn().mockResolvedValue(mockChannel)
         await expect(
-            minomy.depositToChannelTx(mockChannelId, mockValue)
+            minomy.createDepositToChannelTx(mockChannelId, mockValue)
         ).rejects.toEqual(new Error(`Failed to deposit: Default account is not the sender`))
     })
     test('Returns mock transaction if sender is account and value is positive', async () => {
@@ -278,7 +278,7 @@ describe('Depositing to a channel', () => {
             mockTx
         )
         await expect(
-            minomy.depositToChannelTx(mockChannelId, mockValue)
+            minomy.createDepositToChannelTx(mockChannelId, mockValue)
         ).resolves.toEqual(mockTx)
     })
 })
@@ -296,7 +296,7 @@ describe('Create Claim', () => {
     let minomy
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockReceiver = '0x54321'
         mockWeb3 = {eth: 
@@ -307,14 +307,14 @@ describe('Create Claim', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue }
         mockClosingChannel = {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: 100, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue
         }
@@ -322,9 +322,9 @@ describe('Create Claim', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil returns as '0' in a normal web3 call
-            value: new BN(10)
+            value: new BigNumber(10)
         }
         mockBadWeb3 = {eth: {defaulAccount: '0x', accounts: {wallet: [{address: '0x'}]}}}
         mockClaim = {
@@ -339,13 +339,13 @@ describe('Create Claim', () => {
     test('Throws for zero value deposit', async () => {
         minomy = new Minomy(Unidirectional, mockWeb3)
         await expect(
-            minomy.createClaim({ channelId: mockChannelId, value: new BN(0) })
+            minomy.createClaim({ channelId: mockChannelId, value: new BigNumber(0) })
         ).rejects.toEqual(new Error(`Failed to create claim: can't create claim for 0 or negative amount`))
     })
     test('Throws for negative value deposit', async () => {
         minomy = new Minomy(Unidirectional, mockWeb3)
         await expect(
-            minomy.createClaim({ channelId: mockChannelId, value: new BN(-100) })
+            minomy.createClaim({ channelId: mockChannelId, value: new BigNumber(-100) })
         ).rejects.toEqual(new Error(`Failed to create claim: can't create claim for 0 or negative amount`))
     })
     test('Throws if account is not the sender', async () => {
@@ -397,7 +397,7 @@ describe('Validate Claim', () => {
     let mockNegativeClaim
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockReceiver = '0x54321'
         mockClaim = {
@@ -409,7 +409,7 @@ describe('Validate Claim', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue }
         mockWeb3 = {eth: 
@@ -444,7 +444,7 @@ describe('Validate Claim', () => {
     test('Throws if claim value is more than channel', async () => {
         mockTooLargeClaim = {
             channelId: mockChannelId,
-            value: new BN(1000).toString(),
+            value: new BigNumber(1000).toString(),
             signature: 'Mock Signature'
         }
         minomy = new Minomy(Unidirectional, mockWeb3)
@@ -461,12 +461,12 @@ describe('Validate Claim', () => {
     test('Throws if claim value is zero or negative', async () => {
         mockZeroClaim = {
             channelId: mockChannelId,
-            value: new BN(0).toString(),
+            value: new BigNumber(0).toString(),
             signature: 'Mock Signature'
         }
         mockNegativeClaim = {
             channelId: mockChannelId,
-            value: new BN(-100).toString(),
+            value: new BigNumber(-100).toString(),
             signature: 'Mock Signature'
         }
         minomy = new Minomy(Unidirectional, mockWeb3)
@@ -513,7 +513,7 @@ describe('Closing a channel', () => {
     let mockData
     beforeEach(() => {
         mockAddress = '0x12345'
-        mockValue = new BN(100)
+        mockValue = new BigNumber(100)
         mockChannelId = '0xabc'
         mockReceiver = '0x54321'
         mockData = "0xfd745bcee72cb3c62"
@@ -530,12 +530,12 @@ describe('Closing a channel', () => {
             gas: mockGas,
             gasPrice: mockGasPrice,
             to: mockReceiver,
-            value: mockValue.toString('hex') }
+            value: mockValue.toString(16) }
         mockChannel = {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
+            settlingPeriod: new BigNumber(40320),
             settlingUntil: undefined, // settlingUntil returns as '0' in a normal web3 call
             value: mockValue }
         mockWeb3Sender = {eth: 
@@ -563,7 +563,7 @@ describe('Closing a channel', () => {
             }}
         )
         await expect(
-            minomy.closeChannelTx({ channelId: mockChannelId, claim: undefined})
+            minomy.createCloseChannelTx({ channelId: mockChannelId, claim: undefined})
         ).rejects.toEqual(
             new Error(`Failed to settle: Failed to claim: Cannot claim channel on behalf of receiver: No claim given.`)) 
     })
@@ -580,7 +580,7 @@ describe('Closing a channel', () => {
         minomy.validateClaim = jest.fn().mockResolvedValue(true)
         minomy._generateTx = jest.fn().mockResolvedValue(mockTx)
         await expect(
-            minomy.closeChannelTx({ channelId: mockChannelId, claim: mockClaim})
+            minomy.createCloseChannelTx({ channelId: mockChannelId, claim: mockClaim})
         ).resolves.toEqual(mockTx) 
     })
     test('Returns start settling mock Tx if sender initiates.', async () => {
@@ -590,7 +590,7 @@ describe('Closing a channel', () => {
             gas: mockGas,
             gasPrice: mockGasPrice,
             to: mockReceiver,
-            value: mockValue.toString('hex') }
+            value: mockValue.toString(16) }
         minomy = new Minomy(Unidirectional, mockWeb3Sender)
         minomy.getChannel = jest.fn().mockResolvedValue(mockChannel)
         minomy._getContractInstance = jest.fn().mockResolvedValue(
@@ -602,7 +602,7 @@ describe('Closing a channel', () => {
         )
         minomy._generateTx = jest.fn().mockResolvedValue(mockStartSettlingTx)
         await expect(
-            minomy.closeChannelTx({ channelId: mockChannelId, claim: undefined})
+            minomy.createCloseChannelTx({ channelId: mockChannelId, claim: undefined})
         ).resolves.toEqual(mockStartSettlingTx) 
     })
     test('Throws if sender calls and settling period is not over', async () => {
@@ -616,8 +616,8 @@ describe('Closing a channel', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
-            settlingUntil: new BN(2),
+            settlingPeriod: new BigNumber(40320),
+            settlingUntil: new BigNumber(2),
             value: mockValue }
         minomy = new Minomy(Unidirectional, mockWeb3Sender)
         minomy._getContractInstance = jest.fn().mockResolvedValue(
@@ -629,7 +629,7 @@ describe('Closing a channel', () => {
         )
         minomy.getChannel = jest.fn().mockResolvedValue(mockChannel)
         await expect(
-            minomy.closeChannelTx({ channelId: mockChannelId, claim: undefined})
+            minomy.createCloseChannelTx({ channelId: mockChannelId, claim: undefined})
         ).rejects.toEqual(
             new Error(`Failed to settle: Failed to settle: 1 blocks remaining in settling period`)) 
     })
@@ -644,8 +644,8 @@ describe('Closing a channel', () => {
             channelId: mockChannelId,
             receiver: mockReceiver,
             sender: mockAddress,
-            settlingPeriod: new BN(40320),
-            settlingUntil: new BN(1),
+            settlingPeriod: new BigNumber(40320),
+            settlingUntil: new BigNumber(1),
             value: mockValue }
         let mockSettlingTx = {
             data: "Settling",
@@ -653,7 +653,7 @@ describe('Closing a channel', () => {
             gas: mockGas,
             gasPrice: mockGasPrice,
             to: mockReceiver,
-            value: mockValue.toString('hex') }
+            value: mockValue.toString(16) }
         minomy = new Minomy(Unidirectional, mockWeb3Sender)
         minomy._getContractInstance = jest.fn().mockResolvedValue(
             {methods: {
@@ -665,7 +665,7 @@ describe('Closing a channel', () => {
         minomy.getChannel = jest.fn().mockResolvedValue(mockChannel)
         minomy._generateTx = jest.fn().mockResolvedValue(mockSettlingTx)
         await expect(
-            minomy.closeChannelTx({ channelId: mockChannelId, claim: undefined})
+            minomy.createCloseChannelTx({ channelId: mockChannelId, claim: undefined})
         ).resolves.toEqual(mockSettlingTx) 
     })
 })
