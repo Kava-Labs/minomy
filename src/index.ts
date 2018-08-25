@@ -218,7 +218,7 @@ const createClaim = async (web3: Web3, { channelId, value }: {
     // Serialize the claim
     return {
       channelId,
-      value: '0x' + new BigNumber(value).toString(16),
+      value: new BigNumber(value).toString(),
       signature
     }
   } catch (err) {
